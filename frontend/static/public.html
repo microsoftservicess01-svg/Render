@@ -1,61 +1,105 @@
 <!doctype html>
 <html>
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Public Broadcast</title>
-  <style>
-    body{font-family: Arial;padding:16px;background:#f6f8fb}
-    .card{max-width:900px;margin:16px auto;background:#fff;padding:16px;border-radius:10px}
-    .chat{height:300px;overflow:auto;border:1px solid #eee;padding:8px;border-radius:8px;background:#fafafa}
-    input,button{padding:10px;margin-top:8px;width:100%;box-sizing:border-box}
-    .key{font-weight:700;color:#0b74ff}
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Public Broadcast</title>
+<style>
+  body { font-family: Arial; padding: 20px; background:#f7f9fb; }
+  h2 { text-align:center; }
+  #chat { border:1px solid #ccc; height:220px; overflow-y:auto; padding:8px; border-radius:6px; background:#fff; }
+  input, button { padding:8px; border-radius:6px; margin-top:5px; }
+  video { width:45%; margin:4px; border-radius:8px; background:black; }
+  #videos { text-align:center; margin-top:10px; }
+</style>
 </head>
 <body>
-  <div class="card">
-    <h2>Public Broadcast</h2>
-    <div id="chat" class="chat"></div>
-    <input id="msg" placeholder="Say something public">
-    <button id="send">Send Public</button>
-    <hr>
-    <p>Your private entry key (share this with people you want to let into your private room):</p>
-    <div id="entryKey" class="key"></div>
-    <button id="saveKey">Use this key (go to private)</button>
-  </div>
+<h2>🌍 Public Broadcast</h2>
+<div id="chat"></div>
+<input id="msg" placeholder="Say something..." /> <button id="send">Send</button>
 
-  <script src="https://cdn.socket.io/4.7.1/socket.io.min.js"></script>
-  <script src="shared.js"></script>
-  <script>
-    token = localStorage.getItem('token');
-    myId = localStorage.getItem('userId');
-    if (!token) location.href = 'login.html';
+<div id="videos">
+  <video id="localVideo" autoplay muted playsinline></video>
+  <video id="remoteVideo" autoplay playsinline></video>
+</div>
 
-    const socket = io(API_BASE, { path: '/socket.io' });
-    const chat = document.getElementById('chat');
-    const entryKey = Math.random().toString(36).slice(2,8);
-    document.getElementById('entryKey').innerText = entryKey;
+<hr>
+<h3>Your Private Entry Key:</h3>
+<div id="entryKey" style="font-weight:bold;color:#007bff;"></div>
+<button id="privateBtn">Join Private Broadcast</button>
 
-    socket.on('connect', () => socket.emit('auth', token));
-    socket.on('public-message', (m) => {
-      const p = document.createElement('div');
-      p.textContent = m.from + ': ' + m.text;
-      chat.appendChild(p);
-      chat.scrollTop = chat.scrollHeight;
-    });
+<script src="https://cdn.socket.io/4.7.1/socket.io.min.js"></script>
+<script src="shared.js"></script>
+<script>
+token = localStorage.getItem('token');
+myId = localStorage.getItem('userId');
+if (!token) location.href = 'login.html';
 
-    document.getElementById('send').onclick = () => {
-      const v = document.getElementById('msg').value;
-      if (!v) return;
-      socket.emit('public-message', v);
-      document.getElementById('msg').value = '';
-    };
+const socket = io(API_BASE, { path: '/socket.io' });
+const chat = document.getElementById('chat');
+const msg = document.getElementById('msg');
+const entryKey = Math.random().toString(36).substring(2,8);
+document.getElementById('entryKey').innerText = entryKey;
 
-    document.getElementById('saveKey').onclick = async () => {
-      // register the key server-side (optional)
-      await api('entrykey','POST',{ key: entryKey });
-      localStorage.setItem('entryKey', entryKey);
-      window.location = 'private.html';
-    };
-  </script>
+// === PUBLIC CHAT ===
+socket.on('connect', () => socket.emit('auth', token));
+socket.on('auth-ok', () => console.log('Connected to public chat'));
+socket.on('public-message', m => {
+  const p = document.createElement('p');
+  p.textContent = `${m.from}: ${m.text}`;
+  chat.appendChild(p);
+  chat.scrollTop = chat.scrollHeight;
+});
+
+document.getElementById('send').onclick = () => {
+  socket.emit('public-message', msg.value);
+  msg.value = '';
+};
+
+document.getElementById('privateBtn').onclick = () => {
+  localStorage.setItem('entryKey', entryKey);
+  location.href = 'private.html';
+};
+
+// === PUBLIC VIDEO CHAT (WebRTC) ===
+const localVideo = document.getElementById('localVideo');
+const remoteVideo = document.getElementById('remoteVideo');
+let pc;
+
+async function startVideo() {
+  const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+  localVideo.srcObject = stream;
+
+  pc = new RTCPeerConnection();
+  stream.getTracks().forEach(track => pc.addTrack(track, stream));
+
+  pc.ontrack = event => {
+    remoteVideo.srcObject = event.streams[0];
+  };
+
+  pc.onicecandidate = event => {
+    if (event.candidate) socket.emit('public-signal', { candidate: event.candidate });
+  };
+
+  socket.on('public-signal', async data => {
+    if (data.sdp) {
+      await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+      if (data.sdp.type === 'offer') {
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        socket.emit('public-signal', { sdp: pc.localDescription });
+      }
+    } else if (data.candidate) {
+      try { await pc.addIceCandidate(data.candidate); } catch(e){ console.error(e); }
+    }
+  });
+
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  socket.emit('public-signal', { sdp: offer });
+}
+
+startVideo();
+</script>
 </body>
 </html>
