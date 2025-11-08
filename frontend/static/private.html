@@ -1,0 +1,58 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Private Broadcast</title>
+  <style>
+    body{font-family: Arial;padding:16px;background:#f6f8fb}
+    .card{max-width:900px;margin:16px auto;background:#fff;padding:16px;border-radius:10px}
+    .chat{height:300px;overflow:auto;border:1px solid #eee;padding:8px;border-radius:8px;background:#fafafa}
+    input,button{padding:10px;margin-top:8px;width:100%;box-sizing:border-box}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Private Broadcast</h2>
+    <input id="keyInput" placeholder="Enter private entry key or use saved">
+    <button id="joinBtn">Join Private Room</button>
+    <div id="chat" class="chat"></div>
+    <input id="msg" placeholder="Private message">
+    <button id="send">Send Private</button>
+  </div>
+
+  <script src="https://cdn.socket.io/4.7.1/socket.io.min.js"></script>
+  <script src="shared.js"></script>
+  <script>
+    token = localStorage.getItem('token');
+    if (!token) location.href = 'login.html';
+    const socket = io(API_BASE, { path: '/socket.io' });
+    const chat = document.getElementById('chat');
+    let currentKey = localStorage.getItem('entryKey') || '';
+
+    document.getElementById('keyInput').value = currentKey;
+
+    socket.on('connect', () => socket.emit('auth', token));
+    socket.on('private-message', (m) => {
+      const p = document.createElement('div');
+      p.textContent = m.from + ': ' + m.text;
+      chat.appendChild(p);
+      chat.scrollTop = chat.scrollHeight;
+    });
+
+    document.getElementById('joinBtn').onclick = () => {
+      const k = document.getElementById('keyInput').value.trim();
+      if (!k) return alert('Enter key');
+      currentKey = k;
+      socket.emit('join-private', k);
+      alert('Joined private room: ' + k);
+    };
+
+    document.getElementById('send').onclick = () => {
+      if (!currentKey) return alert('Join a private room first');
+      const t = document.getElementById('msg').value;
+      socket.emit('private-message', { key: currentKey, text: t });
+      document.getElementById('msg').value = '';
+    };
+  </script>
+</body>
+</html>
