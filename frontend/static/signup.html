@@ -1,15 +1,34 @@
 <!doctype html>
 <html>
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Sign Up</title>
   <style>
-    body{font-family: Arial; background:#f6f8fb; padding:24px}
-    .card{max-width:420px;margin:40px auto;background:#fff;padding:20px;border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,0.06)}
-    input,button{width:100%;padding:10px;margin:8px 0;border-radius:6px;border:1px solid #ccc}
-    button{background:#0b74ff;color:#fff;border:none}
-    .uid{font-weight:700;color:#0b74ff}
+    body { font-family: Arial; background:#f6f8fb; padding:24px; }
+    .card {
+      max-width:420px;
+      margin:40px auto;
+      background:#fff;
+      padding:20px;
+      border-radius:10px;
+      box-shadow:0 4px 14px rgba(0,0,0,0.06);
+    }
+    input,button {
+      width:100%; padding:10px; margin:8px 0;
+      border-radius:6px; border:1px solid #ccc;
+    }
+    button {
+      background:#0b74ff; color:#fff; border:none; font-weight:600;
+    }
+    .uid { font-weight:700; color:#0b74ff; }
+    .spinner {
+      display:none;
+      text-align:center;
+      margin-top:10px;
+      color:#555;
+      font-size:14px;
+    }
   </style>
 </head>
 <body>
@@ -17,30 +36,49 @@
     <h2>Create account</h2>
     <p>Your automatic user ID (save it):</p>
     <div id="uid" class="uid"></div>
-    <input id="password" type="password" placeholder="Create password">
-    <input id="accessKey" placeholder="Admin key (required)">
+    <input id="password" type="password" placeholder="Create password" />
+    <input id="accessKey" placeholder="Admin key (required)" />
     <button id="signupBtn">Create account</button>
-    <p style="font-size:13px;color:#666">Already have an ID? <a href="login.html">Login</a></p>
+    <div class="spinner" id="spinner">Creating account...</div>
+    <p style="font-size:13px;color:#666">
+      Already have an ID? <a href="login.html">Login</a>
+    </p>
   </div>
 
   <script src="shared.js"></script>
   <script>
     const uid = generateUUID();
     document.getElementById('uid').innerText = uid;
-    document.getElementById('signupBtn').onclick = async () => {
-      const password = document.getElementById('password').value;
-      const accessKey = document.getElementById('accessKey').value;
-      if (!password || !accessKey) return alert('Fill password and admin key');
-      const res = await api('signup','POST',{phone: uid, password, accessKey});
+
+    const spinner = document.getElementById('spinner');
+    const signupBtn = document.getElementById('signupBtn');
+
+    signupBtn.onclick = async () => {
+      const password = document.getElementById('password').value.trim();
+      const accessKey = document.getElementById('accessKey').value.trim();
+
+      if (!password || !accessKey) {
+        alert('Please fill password and admin key.');
+        return;
+      }
+
+      spinner.style.display = 'block';
+      signupBtn.disabled = true;
+
+      const res = await api('signup', 'POST', { phone: uid, password, accessKey });
+
+      spinner.style.display = 'none';
+      signupBtn.disabled = false;
+
       if (res.token) {
         token = res.token;
         myId = res.id;
         localStorage.setItem('userId', myId);
         localStorage.setItem('token', token);
-        alert('Account created. Your ID: ' + myId);
+        alert('✅ Account created successfully! Your ID: ' + myId);
         window.location = 'login.html';
       } else {
-        alert('Signup failed: ' + JSON.stringify(res));
+        alert('⚠️ Signup failed. Please check your Admin Key or try again.');
       }
     };
   </script>
