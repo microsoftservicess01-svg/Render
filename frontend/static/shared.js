@@ -1,17 +1,31 @@
-const API_BASE = window.API_BASE || "https://new-chat-bot-4.onrender.com";
+// === shared.js ===
+// Automatically use current domain for API calls (no hardcoded URL)
+const API_BASE = window.location.origin;
 let token = null;
 let myId = null;
 
-async function api(path, method='GET', body) {
-  const res = await fetch(API_BASE + '/api/' + path, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: 'Bearer ' + token } : {})
-    },
-    body: body ? JSON.stringify(body) : undefined
-  });
-  return res.json();
+// Unified API helper with visible error messages
+async function api(path, method = 'GET', body) {
+  try {
+    const res = await fetch(API_BASE + '/api/' + path, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: 'Bearer ' + token } : {})
+      },
+      body: body ? JSON.stringify(body) : undefined
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error ? `⚠️ ${data.error}` : 'Unknown error');
+      return {};
+    }
+    return data;
+  } catch (err) {
+    alert('❌ Could not reach server. Please try again.');
+    console.error(err);
+    return {};
+  }
 }
 
 function generateUUID() {
